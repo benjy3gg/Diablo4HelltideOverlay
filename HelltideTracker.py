@@ -25,7 +25,6 @@ class HelltideTracker:
     def setup(self):
         # URL of the website
         URL = 'https://helltides.com/'
-       # URL = 'https://d4builds.gg/map/'
 
         # Element ID of the div to capture
         ELEMENT_ID = 'map'
@@ -38,7 +37,7 @@ class HelltideTracker:
         webdriver_options.add_argument("--disable-dev-shm-usage")
         webdriver_options.add_argument("--window-size=2560,1440")
         #webdriver_options.add_argument("--app=https://helltides.com/")
-        webdriver_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36");
+        webdriver_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 7.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
 
         webdriver_options.add_experimental_option('excludeSwitches', ['enable-logging', "enable-automation"])
         webdriver_options.experimental_options["prefs"] = webdriver_prefs
@@ -48,40 +47,42 @@ class HelltideTracker:
         self.browser = webdriver.Chrome(service=service, options=webdriver_options)
         self.browser.get(URL)
         self.browser.execute_script("window.maps = [];")
+        #self.init_maps()
+        time.sleep(.5)
         self.hide_all_shit()
 
+    def init_maps(self):
+         self.browser.execute_script("""
+            (async() => {
+                console.log("waiting for variable L");
+                while(!window.hasOwnProperty("L"))
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                window.L.Map.addInitHook(function () { window.maps.push(this); console.log(window.maps);});
+            })();
+                (async() => {
+                console.log("waiting for variable L");
+                while(!L)
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                L.Map.addInitHook(function () { window.maps.push(this); console.log(window.maps);});
+            })();
+            (async() => {
+                console.log("waiting for variable L");
+                while(!window.maps[0])
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                const image = Object.values(window.maps[0]._layers)[0]._image
+                window.maps[0]._container.style.position = 'absolute';
+                window.maps[0]._container.style.width = image.naturalWidth + 'px';
+                window.maps[0]._container.style.height = image.naturalHeight + 'px';
+                window.maps[0].invalidateSize(false);
+                //window.maps[0].fitWorld();
+            })();
+        """)
+        
 
     def hide_all_shit(self):
         try:
-            self.browser.execute_script("console.log(window.maps)")
+            #self.browser.execute_script("console.log(window.maps)")
             # L.Map.addInitHook(function () { window.maps.push(this); console.log(window.maps);}); 
-            self.browser.execute_script("""
-                (async() => {
-                    console.log("waiting for variable L");
-                    while(!window.hasOwnProperty("L"))
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    window.L.Map.addInitHook(function () { window.maps.push(this); console.log(window.maps);});
-                })();
-                 (async() => {
-                    console.log("waiting for variable L");
-                    while(!L)
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    L.Map.addInitHook(function () { window.maps.push(this); console.log(window.maps);});
-                })();
-                (async() => {
-                    console.log("waiting for variable L");
-                    while(!window.maps[0])
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    const image = Object.values(window.maps[0]._layers)[0]._image
-                    window.maps[0]._container.style.position = 'absolute';
-                    window.maps[0]._container.style.width = image.naturalWidth + 'px';
-                    window.maps[0]._container.style.height = image.naturalHeight + 'px';
-                    window.maps[0].invalidateSize(false);
-                    //window.maps[0].fitWorld();
-                })();
-            """)
-           
-            time.sleep(.5)
             self.browser.execute_script("document.querySelector('html').style.visibility = 'hidden';")
             self.browser.execute_script("document.querySelector('#map').style.visibility = 'visible';")
             self.browser.execute_script("document.querySelector('.leaflet-control-container').style.visibility = 'hidden';")
@@ -89,24 +90,42 @@ class HelltideTracker:
             self.browser.execute_script("document.querySelector('nav').style.display = 'none';")
             self.browser.execute_script("document.querySelector('.max-w-screen-2xl .mx-auto').style.display = 'none';")
             self.browser.execute_script("document.querySelectorAll('#map .leaflet-interactive .rounded-full').forEach((e) => e.style.borderColor = '#ffcc00');")
-            time.sleep(.5)
+            #time.sleep(.5)
         except Exception as e:
             print(e)
             pass
 
     def is_helltide_active(self):
         try:
-            return self.browser.execute_script("return !!document.querySelector('#map')")
+            is_active = self.browser.execute_script("return !!document.querySelector('#map')")
+            if is_active:
+                self.browser.execute_script("document.querySelector('.flex .gap-2:has(svg)').click()")
+            return is_active
         except Exception as e:
             print(e)
             return False
 
     def when_is_next_helltide(self):
+        lines = []
+        lines.append("const helltide = [...document.querySelectorAll('.text-2xl').values()].find((a) => a.textContent.includes('Helltide'))")
+        lines.append("const helltide_text = helltide.textContent")
+        lines.append("let helltide_timer = helltide.nextSibling.textContent")
+        lines.append("helltide_timer = helltide_timer.replace(/(Mute Sound|\\n)/g, '')")
+        lines.append("return '' + helltide_text + ': ' + helltide_timer")
+        script = ";\n".join(lines)
+
         try:
-            return self.browser.execute_script('return `${document.querySelector(".text-4xl").textContent}: ${document.querySelector(".text-2xl").textContent}`')
+            return self.browser.execute_script("""
+                const helltide = [...document.querySelectorAll('.text-2xl').values()].find((a) => a.textContent.includes('Helltide'))
+                const helltide_text = helltide.textContent
+                let helltide_timer = helltide.nextSibling.textContent
+                helltide_timer = helltide_timer.replace(/(Mute Sound|\\n)/g, '')
+                return helltide_timer
+            """)
         except Exception as e:
             print(e)
-            return ""
+            pass
+        
         
     def chest_reset_timer(self):
         try:
@@ -117,8 +136,12 @@ class HelltideTracker:
 
     def take_screenshot(self):
         if self.is_helltide_active():
-            self.hide_all_shit()
             try:
+                self.hide_all_shit()
+            except:
+                pass
+            try:
+                
                 map = self.browser.find_element(By.ID,"map")
 
                 map_name = f"images/maps/map.png"
@@ -141,7 +164,6 @@ class HelltideTracker:
 
                 im2 = Image.fromarray(data)
                 im2.save(map_overlay_name)
-                print(map_name, map_overlay_name)
 
                 # Convert the image to grayscale
                 gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
@@ -153,7 +175,6 @@ class HelltideTracker:
                 circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1, minDist=20,
                             param1=15, param2=15, minRadius=5, maxRadius=50)
 
-                print(circles)
                 chests = []
                 events = []
                 # Ensure circles were found
@@ -167,10 +188,8 @@ class HelltideTracker:
                             chests.append({"x": x, "y": y, "r": r})
                         else:
                             events.append({"x": x, "y": y, "r": r})
-                    print("chests:", chests)
-                    print("events:", events)
                 else:
-                    print("No circles detected in the image.")
+                    pass
 
                 return map_name, chests, events
             except Exception as e:
